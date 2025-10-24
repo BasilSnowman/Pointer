@@ -12,9 +12,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableStateOf // Для создания изменяемого состояния
+import androidx.compose.runtime.remember // Для запоминания значения между пересборками
+import androidx.compose.runtime.getValue // Для чтения значения из State
+import androidx.compose.runtime.setValue // Для обновления значения State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.ui.unit.dp
@@ -36,20 +41,31 @@ class MainActivity : ComponentActivity() {
 // Модифицированная Composable функция
 @Composable
 fun MyEmptyAppScreen() {
+    // Создаём состояние для счётчика
+    var counter by remember { mutableStateOf(0) }
+
     Column(
-        modifier = Modifier.fillMaxSize(), // Занимает всё доступное пространство
-        horizontalAlignment = Alignment.CenterHorizontally, // Центрирует содержимое по горизонтали
-        verticalArrangement = androidx.compose.foundation.layout.Arrangement.Center // Размещает элементы по центру вертикально
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
+        // Отображаем текущее значение счётчика
+        Text(
+            text = "Количество нажатий: $counter",
+            style = MaterialTheme.typography.headlineMedium,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+
         Button(
-            onClick = { /* TODO Обработать нажатие на кнопку */ },
-            modifier = Modifier
-                .padding(16.dp) // Добавляем отступы
+            onClick = {
+                // Увеличиваем счётчик на 1 при нажатии
+                counter++
+                // Compose автоматически обновит UI
+            },
+            modifier = Modifier.padding(16.dp)
         ) {
-            Text(text = "Нажми меня!") // Текст на кнопке
+            Text(text = "Нажми меня!")
         }
-        // Можно добавить Spacer для дополнительного расстояния, если нужно
-        Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
