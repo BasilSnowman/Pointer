@@ -24,13 +24,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
 import ru.dwaidwa.pointer.ui.theme.PointerTheme // Замените на вашу тему
 import kotlinx.coroutines.launch // Импортируем для launch в coroutineScope
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import ru.dwaidwa.pointer.ui.SettingsScreen
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
@@ -39,35 +43,54 @@ class MainActivity : ComponentActivity() {
         setContent {
             PointerTheme {
                 Surface(color = MaterialTheme.colorScheme.background) {
-                    // Загружаем начальное значение при первом запуске Composable
-                    val initialCountAndDate = produceState(initialValue = Pair(0, 0)) {
-                        value = (applicationContext as MyApplication).loadClickCount()
+                    val navController = rememberNavController()
+
+                    NavHost(
+                        navController = navController,
+                        startDestination = "main"
+                    ) {
+                        composable("main") { backStackEntry ->
+                            val initialCountState = produceState(initialValue = -1) {
+                                value = (applicationContext as MyApplication).loadTodayClickCount()
+                            }
+
+                            val initialCount = initialCountState.value
+                            if (initialCount != -1) {
+                                MyEmptyAppScreen(
+                                    initialCount = initialCount,
+                                    onSettingsClick = { navController.navigate("settings") }
+                                )
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center)) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        }
+                        composable("settings") { backStackEntry ->
+                            SettingsScreen(
+                                onResetClick = {
+                                    (applicationContext as MyApplication).resetTodayClickCount()
+                                },
+                                onBackClick = { navController.popBackStack() }
+                            )
+                        }
                     }
-
-                    // Ждем загрузки данных
-                    val (initialCount, _) = initialCountAndDate.value
-
-                    // Передаем начальное значение в экран
-                    MyEmptyAppScreen(initialCount = initialCount)
                 }
             }
         }
     }
 }
 
-// Обновленная Composable функция
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun MyEmptyAppScreen(initialCount: Int) {
+fun MyEmptyAppScreen(initialCount: Int, onSettingsClick: () -> Unit) {
     var counter by remember { mutableStateOf(initialCount) }
-    val context = LocalContext.current // Получаем контекст для сохранения
-    val scope = rememberCoroutineScope() // CoroutineScope для запуска suspend функций
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
-    // Сохраняем счётчик при его изменении
     LaunchedEffect(counter) {
-    // Запускаем асинхронное сохранение
         scope.launch {
-            context.saveClickCount(counter)
+            context.saveTodayClickCount(counter)
         }
     }
 
@@ -77,18 +100,23 @@ fun MyEmptyAppScreen(initialCount: Int) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Количество нажатий сегодня: $counter",
+            text = "Нажатий сегодня: $counter",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
         Button(
-            onClick = {
-                counter++
-            },
-            modifier = Modifier.padding(16.dp)
+            onClick = { counter++ },
+            modifier = Modifier.padding(bottom = 16.dp)
         ) {
             Text(text = "Нажми меня!")
+        }
+
+        Button(
+            onClick = onSettingsClick,
+            modifier = Modifier.padding(8.dp)
+        ) {
+            Text(text = "Настройки")
         }
     }
 }
@@ -99,7 +127,20 @@ fun MyEmptyAppScreen(initialCount: Int) {
 fun DefaultPreview() {
     PointerTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
-            MyEmptyAppScreen(initialCount = 5) // Пример с предустановленным значением
+            MyEmptyAppScreen(initialCount = 0, onSettingsClick = {})
+        }
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+fun SettingsPreview() {
+    PointerTheme {
+        Surface(color = MaterialTheme.colorScheme.background) {
+            SettingsScreen(
+                onResetClick = {},
+                onBackClick = {}
+            )
         }
     }
 }
