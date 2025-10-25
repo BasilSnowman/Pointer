@@ -5,7 +5,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.annotation.RequiresApi
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -24,9 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
 import ru.dwaidwa.pointer.ui.theme.PointerTheme // Замените на вашу тему
@@ -35,6 +31,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import ru.dwaidwa.pointer.ui.SettingsScreen
+import ru.dwaidwa.pointer.ui.theme.PointerTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
@@ -50,28 +48,26 @@ class MainActivity : ComponentActivity() {
                         startDestination = "main"
                     ) {
                         composable("main") { backStackEntry ->
-                            val initialCountState = produceState(initialValue = -1) {
-                                value = (applicationContext as MyApplication).loadTodayClickCount()
+                            // Загружаем список меток времени
+                            val initialTimestampsState = produceState(initialValue = emptyList<String>()) {
+                                value = (applicationContext as MyApplication).loadTodayClickTimestamps()
                             }
 
-                            val initialCount = initialCountState.value
-                            if (initialCount != -1) {
-                                MyEmptyAppScreen(
-                                    initialCount = initialCount,
-                                    onSettingsClick = { navController.navigate("settings") }
-                                )
-                            } else {
-                                Box(modifier = Modifier.fillMaxSize().wrapContentSize(Alignment.Center)) {
-                                    CircularProgressIndicator()
-                                }
-                            }
+                            val initialTimestamps = initialTimestampsState.value
+
+                            MyEmptyAppScreen(
+                                initialTimestamps = initialTimestamps,
+                                onSettingsClick = { navController.navigate("settings") }
+                            )
                         }
                         composable("settings") { backStackEntry ->
                             SettingsScreen(
                                 onResetClick = {
-                                    (applicationContext as MyApplication).resetTodayClickCount()
+                                    (applicationContext as MyApplication).resetTodayClickTimestamps()
                                 },
-                                onBackClick = { navController.popBackStack() }
+                                onBackClick = { navController.popBackStack() },
+                                // Передаём функцию для загрузки меток
+                                loadTimestamps = { (applicationContext as MyApplication).loadTodayClickTimestamps() }
                             )
                         }
                     }
@@ -81,18 +77,16 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Обновляем MyEmptyAppScreen
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun MyEmptyAppScreen(initialCount: Int, onSettingsClick: () -> Unit) {
-    var counter by remember { mutableStateOf(initialCount) }
+fun MyEmptyAppScreen(initialTimestamps: List<String>, onSettingsClick: () -> Unit) {
+    var timestamps by remember { mutableStateOf(initialTimestamps) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(counter) {
-        scope.launch {
-            context.saveTodayClickCount(counter)
-        }
-    }
+    // Обновляем счётчик при изменении списка меток
+    val currentCount = timestamps.size
 
     Column(
         modifier = Modifier.fillMaxSize(),
@@ -100,13 +94,21 @@ fun MyEmptyAppScreen(initialCount: Int, onSettingsClick: () -> Unit) {
         verticalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "Нажатий сегодня: $counter",
+            text = "Нажатий сегодня: $currentCount",
             style = MaterialTheme.typography.headlineMedium,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
         Button(
-            onClick = { counter++ },
+            onClick = {
+                scope.launch {
+                    // Добавляем новую метку времени
+                    context.addTodayClickTimestamp()
+                    // Перезагружаем список из DataStore
+                    val updatedList = context.loadTodayClickTimestamps()
+                    timestamps = updatedList
+                }
+            },
             modifier = Modifier.padding(bottom = 16.dp)
         ) {
             Text(text = "Нажми меня!")
@@ -127,7 +129,7 @@ fun MyEmptyAppScreen(initialCount: Int, onSettingsClick: () -> Unit) {
 fun DefaultPreview() {
     PointerTheme {
         Surface(color = MaterialTheme.colorScheme.background) {
-            MyEmptyAppScreen(initialCount = 0, onSettingsClick = {})
+            MyEmptyAppScreen(initialTimestamps = listOf("2025-10-25T10:00:00Z", "2025-10-25T10:01:00Z"), onSettingsClick = {})
         }
     }
 }
@@ -139,7 +141,8 @@ fun SettingsPreview() {
         Surface(color = MaterialTheme.colorScheme.background) {
             SettingsScreen(
                 onResetClick = {},
-                onBackClick = {}
+                onBackClick = {},
+                loadTimestamps = { emptyList() }
             )
         }
     }
