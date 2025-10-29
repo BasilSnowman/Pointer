@@ -5,7 +5,8 @@ import androidx.compose.ui.platform.LocalContext
 import ru.dwaidwa.pointer.data.SettingsDataStore
 import kotlinx.coroutines.launch
 
-val LocalAppTheme = staticCompositionLocalOf<MyAppTheme> { MyAppTheme.SYSTEM }
+// Убедимся, что значения по умолчанию установлены
+val LocalAppTheme = staticCompositionLocalOf { MyAppTheme.SYSTEM }
 val LocalThemeSetter = staticCompositionLocalOf<(MyAppTheme) -> Unit> { {} }
 
 @Composable
@@ -17,18 +18,14 @@ fun AppThemeWrapper(content: @Composable () -> Unit) {
         value = settingsDataStore.loadSelectedTheme()
     })
 
-    // Текущая тема как изменяемое состояние
     var currentTheme by remember { mutableStateOf(initialTheme) }
 
-    // LaunchedEffect, который срабатывает при изменении currentTheme
     LaunchedEffect(currentTheme) {
-        // Вызываем асинхронное сохранение темы
         settingsDataStore.saveSelectedTheme(currentTheme)
     }
 
-    // Функция для изменения темы, которая просто обновляет состояние
     val setTheme: (MyAppTheme) -> Unit = { newTheme ->
-        currentTheme = newTheme // Это изменение запустит LaunchedEffect выше
+        currentTheme = newTheme
     }
 
     CompositionLocalProvider(

@@ -23,11 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
 import ru.dwaidwa.pointer.ui.theme.PointerTheme // Замените на вашу тему
 import kotlinx.coroutines.launch // Импортируем для launch в coroutineScope
 import androidx.navigation.compose.NavHost
@@ -42,9 +39,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            // AppThemeWrapper должен быть корнем
             AppThemeWrapper {
+                // MyApplicationTheme использует LocalAppTheme
                 PointerTheme {
+                    // Surface внутри темы
                     Surface(color = MaterialTheme.colorScheme.background) {
+                        // NavHost внутри Surface, но всё ещё внутри AppThemeWrapper
                         val navController = rememberNavController()
                         val settingsDataStore = SettingsDataStore(LocalContext.current)
 
@@ -61,15 +62,17 @@ class MainActivity : ComponentActivity() {
 
                                 MyEmptyAppScreen(
                                     initialTimestamps = initialTimestamps,
-                                    onSettingsClick = { navController.navigate("settings") }
+                                    onSettingsClick = { navController.navigate("settings") },
+                                    settingsDataStore = settingsDataStore
                                 )
                             }
                             composable("settings") { backStackEntry ->
+                                // SettingsScreen здесь, также внутри AppThemeWrapper через NavHost
                                 SettingsScreen(
                                     onResetClick = {
                                         settingsDataStore.resetTodayClickTimestamps()
                                     },
-                                    onBackClick = { navController.popBackStack() },
+                                    navController = navController,
                                     loadTimestamps = { settingsDataStore.loadTodayClickTimestamps() }
                                 )
                             }
@@ -81,32 +84,15 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Определение MyEmptyAppScreen (если не в отдельном файле)
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
-fun MyEmptyAppScreen(initialTimestamps: List<String>, onSettingsClick: () -> Unit) {
+fun MyEmptyAppScreen(
+    initialTimestamps: List<String>,
+    onSettingsClick: () -> Unit,
+    settingsDataStore: SettingsDataStore // Принимаем SettingsDataStore
+) {
     var timestamps by remember { mutableStateOf(initialTimestamps) }
-    val context = LocalContext.current
-    val settingsDataStore = SettingsDataStore(context)
     val scope = rememberCoroutineScope()
-
-    // Используем DisposableEffect для обновления при возврате
-    androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle.let { lifecycle ->
-        DisposableEffect(lifecycle) {
-            val observer = androidx.lifecycle.LifecycleEventObserver { source, event ->
-                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                    scope.launch {
-                        val updatedList = settingsDataStore.loadTodayClickTimestamps()
-                        timestamps = updatedList
-                    }
-                }
-            }
-            lifecycle.addObserver(observer)
-            onDispose {
-                lifecycle.removeObserver(observer)
-            }
-        }
-    }
 
     val currentCount = timestamps.size
 
@@ -125,8 +111,9 @@ fun MyEmptyAppScreen(initialTimestamps: List<String>, onSettingsClick: () -> Uni
             onClick = {
                 scope.launch {
                     settingsDataStore.addTodayClickTimestamp()
+                    // После добавления перезагружаем список
                     val updatedList = settingsDataStore.loadTodayClickTimestamps()
-                    timestamps = updatedList
+                    timestamps = updatedList // Обновляем состояние
                 }
             },
             modifier = Modifier.padding(bottom = 16.dp)
@@ -150,7 +137,12 @@ fun DefaultPreview() {
     AppThemeWrapper {
         PointerTheme {
             Surface(color = MaterialTheme.colorScheme.background) {
-                MyEmptyAppScreen(initialTimestamps = listOf("2025-10-25T10:00:00Z", "2025-10-25T10:01:00Z"), onSettingsClick = {})
+                val mockSettingsDataStore = SettingsDataStore(LocalContext.current) // Это для превью, не идеально
+                MyEmptyAppScreen(
+                    initialTimestamps = listOf("2025-10-25T10:00:00Z", "2025-10-25T10:01:00Z"),
+                    onSettingsClick = {},
+                    settingsDataStore = mockSettingsDataStore
+                )
             }
         }
     }
@@ -165,7 +157,7 @@ fun SettingsPreview() {
             Surface(color = MaterialTheme.colorScheme.background) {
                 SettingsScreen(
                     onResetClick = {},
-                    onBackClick = {},
+                    navController = rememberNavController(), // Это для превью
                     loadTimestamps = { emptyList() }
                 )
             }

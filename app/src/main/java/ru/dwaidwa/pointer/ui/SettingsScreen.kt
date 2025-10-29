@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
 import ru.dwaidwa.pointer.data.SettingsDataStore
 import ru.dwaidwa.pointer.ui.theme.LocalAppTheme
 import ru.dwaidwa.pointer.ui.theme.LocalThemeSetter
@@ -28,30 +29,33 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun SettingsScreen(
     onResetClick: suspend () -> Unit,
-    onBackClick: () -> Unit,
+    navController: NavController,
     loadTimestamps: suspend () -> List<String>
 ) {
-    val context = LocalContext.current
-    val settingsDataStore = SettingsDataStore(context)
+    val context = LocalContext.current // LocalContext должен быть доступен
+    val settingsDataStore = SettingsDataStore(context) // Создаём DataStore
     val scope = rememberCoroutineScope()
 
+    // Получаем значения из CompositionLocal
     val currentTheme = LocalAppTheme.current
-    val setTheme = LocalThemeSetter.current // Получаем функцию изменения темы
+    val setTheme = LocalThemeSetter.current // Это функция
 
     var isResetting by remember { mutableStateOf(false) }
 
-    var timestampsState = produceState(initialValue = emptyList<String>(), producer = {
-        value = loadTimestamps()
-    })
+    var timestampsState by remember { mutableStateOf(emptyList<String>()) }
+    var isLoading by remember { mutableStateOf(true) }
 
-    val timestamps = timestampsState.value
-    var isRefreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        timestampsState = loadTimestamps()
+        isLoading = false
+    }
 
-    LaunchedEffect(isRefreshing) {
-        if (isRefreshing) {
-            timestampsState = loadTimestamps() as State<List<String>>
-            isRefreshing = false
-        }
+    var refreshTrigger by remember { mutableStateOf(0) }
+
+    LaunchedEffect(refreshTrigger) {
+        isLoading = true
+        timestampsState = loadTimestamps()
+        isLoading = false
     }
 
     Column(
@@ -61,7 +65,7 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.Start
     ) {
-        IconButton(onClick = onBackClick) {
+        IconButton(onClick = { navController.popBackStack() }) {
             Icon(
                 imageVector = Icons.Default.ArrowBack,
                 contentDescription = "Назад"
@@ -85,7 +89,7 @@ fun SettingsScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { setTheme(MyAppTheme.LIGHT) }, // Вызываем функцию изменения темы
+                onClick = { setTheme(MyAppTheme.LIGHT) }, // Вызов setTheme из LocalThemeSetter
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (currentTheme == MyAppTheme.LIGHT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -93,7 +97,7 @@ fun SettingsScreen(
                 Text(text = "Светлая")
             }
             Button(
-                onClick = { setTheme(MyAppTheme.DARK) }, // Вызываем функцию изменения темы
+                onClick = { setTheme(MyAppTheme.DARK) }, // Вызов setTheme из LocalThemeSetter
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (currentTheme == MyAppTheme.DARK) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -101,7 +105,7 @@ fun SettingsScreen(
                 Text(text = "Тёмная")
             }
             Button(
-                onClick = { setTheme(MyAppTheme.SYSTEM) }, // Вызываем функцию изменения темы
+                onClick = { setTheme(MyAppTheme.SYSTEM) }, // Вызов setTheme из LocalThemeSetter
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (currentTheme == MyAppTheme.SYSTEM) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -112,11 +116,13 @@ fun SettingsScreen(
 
         Button(
             onClick = {
-                isResetting = true
-                scope.launch(Dispatchers.IO) {
-                    onResetClick()
-                    isResetting = false
-                    isRefreshing = true
+                if (!isResetting) {
+                    isResetting = true
+                    scope.launch(Dispatchers.IO) {
+                        onResetClick()
+                        refreshTrigger++
+                        isResetting = false
+                    }
                 }
             },
             enabled = !isResetting,
@@ -142,27 +148,33 @@ fun SettingsScreen(
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-        ) {
-            items(timestamps) { timestampStr ->
-                val instant = try { Instant.parse(timestampStr) } catch (e: Exception) { null }
-                val formattedTime = instant?.atZone(ZoneId.systemDefault())?.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")) ?: "Invalid Time"
-                Text(
-                    text = formattedTime,
-                    modifier = Modifier.padding(vertical = 2.dp, horizontal = 4.dp)
-                )
+        if (isLoading) {
+            Box(modifier = Modifier.fillMaxWidth().weight(1f).wrapContentSize(Alignment.Center)) {
+                CircularProgressIndicator()
             }
-            if (timestamps.isEmpty()) {
-                item {
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                items(timestampsState) { timestampStr ->
+                    val instant = try { Instant.parse(timestampStr) } catch (e: Exception) { null }
+                    val formattedTime = instant?.atZone(ZoneId.systemDefault())?.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")) ?: "Invalid Time"
                     Text(
-                        text = "Нет нажатий за сегодня.",
-                        modifier = Modifier.padding(16.dp),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = formattedTime,
+                        modifier = Modifier.padding(vertical = 2.dp, horizontal = 4.dp)
                     )
+                }
+                if (timestampsState.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Нет нажатий за сегодня.",
+                            modifier = Modifier.padding(16.dp),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
