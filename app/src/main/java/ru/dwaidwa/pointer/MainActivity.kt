@@ -23,8 +23,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import ru.dwaidwa.pointer.ui.theme.PointerTheme // Замените на вашу тему
 import kotlinx.coroutines.launch // Импортируем для launch в coroutineScope
 import androidx.navigation.compose.NavHost
@@ -48,7 +53,7 @@ class MainActivity : ComponentActivity() {
                         startDestination = "main"
                     ) {
                         composable("main") { backStackEntry ->
-                            // Загружаем список меток времени
+                            // Загружаем список меток времени при создании экрана
                             val initialTimestampsState = produceState(initialValue = emptyList<String>()) {
                                 value = (applicationContext as MyApplication).loadTodayClickTimestamps()
                             }
@@ -66,7 +71,6 @@ class MainActivity : ComponentActivity() {
                                     (applicationContext as MyApplication).resetTodayClickTimestamps()
                                 },
                                 onBackClick = { navController.popBackStack() },
-                                // Передаём функцию для загрузки меток
                                 loadTimestamps = { (applicationContext as MyApplication).loadTodayClickTimestamps() }
                             )
                         }
@@ -77,13 +81,35 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Обновляем MyEmptyAppScreen
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MyEmptyAppScreen(initialTimestamps: List<String>, onSettingsClick: () -> Unit) {
     var timestamps by remember { mutableStateOf(initialTimestamps) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle // Получаем lifecycle
+
+    // Используем DisposableEffect для подписки на события lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { source, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                // При возврате на экран (RESUME) перезагружаем список из DataStore
+                scope.launch {
+                    val updatedList = context.loadTodayClickTimestamps()
+                    timestamps = updatedList
+                }
+            }
+            // ON_PAUSE, ON_STOP и т.д. не требуют специальной обработки здесь
+        }
+
+        // Добавляем observer
+        lifecycle.addObserver(observer)
+
+        // Возвращаем объект DisposableEffect, который удаляет observer при выходе из Composition
+        onDispose {
+            lifecycle.removeObserver(observer)
+        }
+    }
 
     // Обновляем счётчик при изменении списка меток
     val currentCount = timestamps.size
@@ -104,7 +130,7 @@ fun MyEmptyAppScreen(initialTimestamps: List<String>, onSettingsClick: () -> Uni
                 scope.launch {
                     // Добавляем новую метку времени
                     context.addTodayClickTimestamp()
-                    // Перезагружаем список из DataStore
+                    // Локально обновляем список (можно оставить для быстрого UI-ответа)
                     val updatedList = context.loadTodayClickTimestamps()
                     timestamps = updatedList
                 }
