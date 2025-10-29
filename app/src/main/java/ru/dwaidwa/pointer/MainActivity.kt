@@ -42,10 +42,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // Используем AppThemeWrapper как корень для управления темой
             AppThemeWrapper {
-                // Теперь LocalAppTheme и LocalThemeSetter доступны
-                PointerTheme { // MyApplicationTheme теперь использует LocalAppTheme
+                PointerTheme {
                     Surface(color = MaterialTheme.colorScheme.background) {
                         val navController = rememberNavController()
                         val settingsDataStore = SettingsDataStore(LocalContext.current)
@@ -73,7 +71,6 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onBackClick = { navController.popBackStack() },
                                     loadTimestamps = { settingsDataStore.loadTodayClickTimestamps() }
-                                    // Функции темы теперь доступны через LocalThemeSetter
                                 )
                             }
                         }
@@ -84,37 +81,33 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// Определение MyEmptyAppScreen (если не в отдельном файле)
 @RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MyEmptyAppScreen(initialTimestamps: List<String>, onSettingsClick: () -> Unit) {
     var timestamps by remember { mutableStateOf(initialTimestamps) }
     val context = LocalContext.current
+    val settingsDataStore = SettingsDataStore(context)
     val scope = rememberCoroutineScope()
-    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle // Получаем lifecycle
 
-    // Используем DisposableEffect для подписки на события lifecycle
-    DisposableEffect(lifecycle) {
-        val observer = LifecycleEventObserver { source, event ->
-            if (event == Lifecycle.Event.ON_RESUME) {
-                // При возврате на экран (RESUME) перезагружаем список из DataStore
-                scope.launch {
-                    val updatedList = context.loadTodayClickTimestamps()
-                    timestamps = updatedList
+    // Используем DisposableEffect для обновления при возврате
+    androidx.compose.ui.platform.LocalLifecycleOwner.current.lifecycle.let { lifecycle ->
+        DisposableEffect(lifecycle) {
+            val observer = androidx.lifecycle.LifecycleEventObserver { source, event ->
+                if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    scope.launch {
+                        val updatedList = settingsDataStore.loadTodayClickTimestamps()
+                        timestamps = updatedList
+                    }
                 }
             }
-            // ON_PAUSE, ON_STOP и т.д. не требуют специальной обработки здесь
-        }
-
-        // Добавляем observer
-        lifecycle.addObserver(observer)
-
-        // Возвращаем объект DisposableEffect, который удаляет observer при выходе из Composition
-        onDispose {
-            lifecycle.removeObserver(observer)
+            lifecycle.addObserver(observer)
+            onDispose {
+                lifecycle.removeObserver(observer)
+            }
         }
     }
 
-    // Обновляем счётчик при изменении списка меток
     val currentCount = timestamps.size
 
     Column(
@@ -131,10 +124,8 @@ fun MyEmptyAppScreen(initialTimestamps: List<String>, onSettingsClick: () -> Uni
         Button(
             onClick = {
                 scope.launch {
-                    // Добавляем новую метку времени
-                    context.addTodayClickTimestamp()
-                    // Локально обновляем список (можно оставить для быстрого UI-ответа)
-                    val updatedList = context.loadTodayClickTimestamps()
+                    settingsDataStore.addTodayClickTimestamp()
+                    val updatedList = settingsDataStore.loadTodayClickTimestamps()
                     timestamps = updatedList
                 }
             },
@@ -156,9 +147,11 @@ fun MyEmptyAppScreen(initialTimestamps: List<String>, onSettingsClick: () -> Uni
 @Preview(showBackground = true)
 @Composable
 fun DefaultPreview() {
-    PointerTheme {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            MyEmptyAppScreen(initialTimestamps = listOf("2025-10-25T10:00:00Z", "2025-10-25T10:01:00Z"), onSettingsClick = {})
+    AppThemeWrapper {
+        PointerTheme {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                MyEmptyAppScreen(initialTimestamps = listOf("2025-10-25T10:00:00Z", "2025-10-25T10:01:00Z"), onSettingsClick = {})
+            }
         }
     }
 }
@@ -167,13 +160,15 @@ fun DefaultPreview() {
 @Preview(showBackground = true)
 @Composable
 fun SettingsPreview() {
-    PointerTheme {
-        Surface(color = MaterialTheme.colorScheme.background) {
-            SettingsScreen(
-                onResetClick = {},
-                onBackClick = {},
-                loadTimestamps = { emptyList() },
-            )
+    AppThemeWrapper {
+        PointerTheme {
+            Surface(color = MaterialTheme.colorScheme.background) {
+                SettingsScreen(
+                    onResetClick = {},
+                    onBackClick = {},
+                    loadTimestamps = { emptyList() }
+                )
+            }
         }
     }
 }

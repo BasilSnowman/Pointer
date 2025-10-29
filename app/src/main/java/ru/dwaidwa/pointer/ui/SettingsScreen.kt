@@ -36,7 +36,7 @@ fun SettingsScreen(
     val scope = rememberCoroutineScope()
 
     val currentTheme = LocalAppTheme.current
-    val setTheme = LocalThemeSetter.current
+    val setTheme = LocalThemeSetter.current // Получаем функцию изменения темы
 
     var isResetting by remember { mutableStateOf(false) }
 
@@ -85,7 +85,7 @@ fun SettingsScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Button(
-                onClick = { setTheme(MyAppTheme.LIGHT) },
+                onClick = { setTheme(MyAppTheme.LIGHT) }, // Вызываем функцию изменения темы
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (currentTheme == MyAppTheme.LIGHT) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -93,7 +93,7 @@ fun SettingsScreen(
                 Text(text = "Светлая")
             }
             Button(
-                onClick = { setTheme(MyAppTheme.DARK) },
+                onClick = { setTheme(MyAppTheme.DARK) }, // Вызываем функцию изменения темы
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (currentTheme == MyAppTheme.DARK) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                 )
@@ -101,7 +101,7 @@ fun SettingsScreen(
                 Text(text = "Тёмная")
             }
             Button(
-                onClick = { setTheme(MyAppTheme.SYSTEM) },
+                onClick = { setTheme(MyAppTheme.SYSTEM) }, // Вызываем функцию изменения темы
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (currentTheme == MyAppTheme.SYSTEM) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
                 )
