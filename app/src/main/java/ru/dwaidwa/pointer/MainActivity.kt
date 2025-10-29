@@ -25,54 +25,57 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import ru.dwaidwa.pointer.ui.theme.PointerTheme // Замените на вашу тему
 import kotlinx.coroutines.launch // Импортируем для launch в coroutineScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import ru.dwaidwa.pointer.ui.SettingsScreen
-import ru.dwaidwa.pointer.ui.theme.PointerTheme
-import kotlinx.coroutines.launch
+import ru.dwaidwa.pointer.data.SettingsDataStore
+import ru.dwaidwa.pointer.ui.theme.AppThemeWrapper
 
 class MainActivity : ComponentActivity() {
     @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            PointerTheme {
-                Surface(color = MaterialTheme.colorScheme.background) {
-                    val navController = rememberNavController()
+            // Используем AppThemeWrapper как корень для управления темой
+            AppThemeWrapper {
+                // Теперь LocalAppTheme и LocalThemeSetter доступны
+                PointerTheme { // MyApplicationTheme теперь использует LocalAppTheme
+                    Surface(color = MaterialTheme.colorScheme.background) {
+                        val navController = rememberNavController()
+                        val settingsDataStore = SettingsDataStore(LocalContext.current)
 
-                    NavHost(
-                        navController = navController,
-                        startDestination = "main"
-                    ) {
-                        composable("main") { backStackEntry ->
-                            // Загружаем список меток времени при создании экрана
-                            val initialTimestampsState = produceState(initialValue = emptyList<String>()) {
-                                value = (applicationContext as MyApplication).loadTodayClickTimestamps()
+                        NavHost(
+                            navController = navController,
+                            startDestination = "main"
+                        ) {
+                            composable("main") { backStackEntry ->
+                                val initialTimestampsState = produceState(initialValue = emptyList<String>()) {
+                                    value = settingsDataStore.loadTodayClickTimestamps()
+                                }
+
+                                val initialTimestamps = initialTimestampsState.value
+
+                                MyEmptyAppScreen(
+                                    initialTimestamps = initialTimestamps,
+                                    onSettingsClick = { navController.navigate("settings") }
+                                )
                             }
-
-                            val initialTimestamps = initialTimestampsState.value
-
-                            MyEmptyAppScreen(
-                                initialTimestamps = initialTimestamps,
-                                onSettingsClick = { navController.navigate("settings") }
-                            )
-                        }
-                        composable("settings") { backStackEntry ->
-                            SettingsScreen(
-                                onResetClick = {
-                                    (applicationContext as MyApplication).resetTodayClickTimestamps()
-                                },
-                                onBackClick = { navController.popBackStack() },
-                                loadTimestamps = { (applicationContext as MyApplication).loadTodayClickTimestamps() }
-                            )
+                            composable("settings") { backStackEntry ->
+                                SettingsScreen(
+                                    onResetClick = {
+                                        settingsDataStore.resetTodayClickTimestamps()
+                                    },
+                                    onBackClick = { navController.popBackStack() },
+                                    loadTimestamps = { settingsDataStore.loadTodayClickTimestamps() }
+                                    // Функции темы теперь доступны через LocalThemeSetter
+                                )
+                            }
                         }
                     }
                 }
@@ -169,7 +172,7 @@ fun SettingsPreview() {
             SettingsScreen(
                 onResetClick = {},
                 onBackClick = {},
-                loadTimestamps = { emptyList() }
+                loadTimestamps = { emptyList() },
             )
         }
     }

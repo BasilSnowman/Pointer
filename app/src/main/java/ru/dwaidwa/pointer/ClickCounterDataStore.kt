@@ -24,8 +24,6 @@ private fun getTimestampsKey(date: LocalDate): Preferences.Key<Set<String>> {
     return stringSetPreferencesKey("click_timestamps_$dateStr")
 }
 
-annotation class stringSetPreferencesKey
-
 /**
  * Загружает список меток времени нажатий для текущего дня.
  * Возвращает пустой список, если для сегодняшней даты метки ещё не были установлены.
